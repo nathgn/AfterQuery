@@ -1,0 +1,58 @@
+model_name: "meta-llama/Llama-2-7b-chat-hf"
+
+qlora:
+  load_in_4bit: true
+  lora_rank: 64
+  lora_alpha: 128
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+
+env:
+  max_steps: 20
+  step_penalty: 0.01
+  w_success: 1.0
+  w_eff: 0.1
+  w_quality: 0.05
+
+grpo:
+  advantage_estimator: "group_norm"
+  n_samples_per_prompt: 4
+  actor_learning_rate: 5.0e-7
+  train_batch_size: 128
+  micro_train_batch_size: 8
+  rollout_batch_size: 128
+  micro_rollout_batch_size: 16
+  ppo_epochs: 1
+  clip_range: 0.2
+  init_kl_coef: 0.001
+  normalize_reward: true
+
+distributed:
+  actor_num_nodes: 1
+  actor_num_gpus_per_node: 2
+  ref_num_nodes: 1
+  ref_num_gpus_per_node: 1
+  vllm_num_engines: 1
+  vllm_tensor_parallel_size: 1
+  colocate_actor_ref: true
+  zero_stage: 3
+
+train:
+  max_samples: 20000
+  max_epochs: 1
+  prompt_max_len: 2048
+  generate_max_len: 1024
+  temperature: 0.7
+  top_p: 0.9
+  save_steps: 500
+  logging_steps: 1
+  eval_steps: 100
+
+paths:
+  reward_func: "./rewards/reward_func.py"
+  prompt_data: "./data/terminalbench_prompts.jsonl"
+  save_path: "./models/rlvr"
+  merged_output: "./models/rlvr-merged"
