@@ -20,6 +20,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 sys.path.insert(0, ".")
 from envs.terminalbench_client import TerminalBenchClient
 from envs.terminalbench_env import TerminalBenchEnv
+from scripts.train_rlvr import _extract_command
 
 
 def load_config(path: str) -> dict:
@@ -88,9 +89,8 @@ def main(args: argparse.Namespace) -> None:
 
             # Decode only the newly generated tokens
             new_ids = out_ids[0][inputs["input_ids"].shape[1]:]
-            action_text = tokenizer.decode(new_ids, skip_special_tokens=True).strip()
-            # Take first line, strip leading $ prompt
-            action_text = action_text.split("\n")[0].strip().lstrip("$ ").strip()
+            raw_text = tokenizer.decode(new_ids, skip_special_tokens=True)
+            action_text = _extract_command(raw_text)
 
             print(f"    step {env.step_count + 1}: {action_text[:80]}")
             obs, reward, done, info = env.step(action_text)
