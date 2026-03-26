@@ -3,13 +3,16 @@
 # Evaluate a TRL-trained (or base) model on terminalbench tasks.
 #
 # Usage:
-#   # Evaluate base model
-#   python scripts/evaluate_terminalbench.py --num_episodes 10
+#   # Evaluate base model, save results
+#   python scripts/evaluate_terminalbench.py --seed 42 --output results/baseline.json --num_episodes 50
 #
-#   # Evaluate trained model
-#   python scripts/evaluate_terminalbench.py --model_dir models/rlvr --num_episodes 10
+#   # Evaluate trained model, save results
+#   python scripts/evaluate_terminalbench.py --model_dir models/rlvr --seed 42 --output results/trained.json --num_episodes 50
 
 import argparse
+import json
+import os
+import random
 import sys
 from collections import defaultdict
 from statistics import mean, stdev
@@ -30,6 +33,11 @@ def load_config(path: str) -> dict:
 
 def main(args: argparse.Namespace) -> None:
     cfg = load_config(args.config)
+
+    # Seed RNG for reproducible task sampling
+    if args.seed is not None:
+        random.seed(args.seed)
+        print(f"Random seed: {args.seed}")
 
     model_name = args.model_dir or cfg["model_name"]
     print(f"Loading model: {model_name}")
@@ -67,6 +75,7 @@ def main(args: argparse.Namespace) -> None:
         last_score = 0.0
         task_id = env.task.task_id if env.task else "unknown"
         difficulty = env.task.difficulty if env.task else "unknown"
+        commands = []
 
         while not done:
             # Truncate prompt to fit within model context window
@@ -92,17 +101,20 @@ def main(args: argparse.Namespace) -> None:
             raw_text = tokenizer.decode(new_ids, skip_special_tokens=True)
             action_text = _extract_command(raw_text)
 
+            commands.append(action_text)
             print(f"    step {env.step_count + 1}: {action_text[:80]}")
             obs, reward, done, info = env.step(action_text)
             episode_reward += reward
             last_score = info["success_score"]
 
         results.append({
+            "episode": ep + 1,
+            "task_id": task_id,
+            "difficulty": difficulty,
             "success_score": last_score,
             "episode_reward": episode_reward,
             "step_count": info["step_count"],
-            "task_id": task_id,
-            "difficulty": difficulty,
+            "commands": commands,
         })
         print(f"  Episode {ep + 1}: task={task_id} score={last_score:.2f} steps={info['step_count']}")
 
@@ -111,32 +123,66 @@ def main(args: argparse.Namespace) -> None:
     rewards = [r["episode_reward"] for r in results]
     steps = [r["step_count"] for r in results]
 
-    print("\n" + "=" * 60)
-    print("EVALUATION RESULTS")
-    print("=" * 60)
-    print(f"Episodes: {num_episodes}")
-    print(f"Mean score: {mean(scores):.3f}" +
-          (f" (std: {stdev(scores):.3f})" if len(scores) > 1 else ""))
-    print(f"Success rate (>=1.0): "
-          f"{mean(1.0 if s >= 1.0 else 0.0 for s in scores):.3f}")
-    print(f"Mean reward: {mean(rewards):.3f}")
-    print(f"Mean steps: {mean(steps):.2f}")
+    summary = {
+        "model": model_name,
+        "num_episodes": num_episodes,
+        "seed": args.seed,
+        "mean_score": round(mean(scores), 4),
+        "std_score": round(stdev(scores), 4) if len(scores) > 1 else 0.0,
+        "success_rate": round(mean(1.0 if s >= 1.0 else 0.0 for s in scores), 4),
+        "mean_reward": round(mean(rewards), 4),
+        "mean_steps": round(mean(steps), 4),
+    }
 
-    # Breakdown by difficulty
     by_difficulty = defaultdict(list)
     for r in results:
         by_difficulty[r["difficulty"]].append(r["success_score"])
 
-    if by_difficulty:
+    difficulty_breakdown = {}
+    for diff in ["easy", "medium", "hard"]:
+        if diff in by_difficulty:
+            d = by_difficulty[diff]
+            difficulty_breakdown[diff] = {
+                "mean_score": round(mean(d), 4),
+                "success_rate": round(mean(1.0 if s >= 1.0 else 0.0 for s in d), 4),
+                "count": len(d),
+            }
+
+    summary["by_difficulty"] = difficulty_breakdown
+
+    # Print summary
+    print("\n" + "=" * 60)
+    print("EVALUATION RESULTS")
+    print("=" * 60)
+    print(f"Model: {model_name}")
+    print(f"Episodes: {num_episodes}")
+    print(f"Mean score: {summary['mean_score']:.3f} (std: {summary['std_score']:.3f})")
+    print(f"Success rate (>=1.0): {summary['success_rate']:.3f}")
+    print(f"Mean reward: {summary['mean_reward']:.3f}")
+    print(f"Mean steps: {summary['mean_steps']:.2f}")
+
+    if difficulty_breakdown:
         print("\nBy difficulty:")
         for diff in ["easy", "medium", "hard"]:
-            if diff in by_difficulty:
-                d = by_difficulty[diff]
-                sr = mean(1.0 if s >= 1.0 else 0.0 for s in d)
+            if diff in difficulty_breakdown:
+                d = difficulty_breakdown[diff]
                 print(
-                    f"  {diff:>8s}: score={mean(d):.3f}, "
-                    f"success_rate={sr:.3f}, n={len(d)}"
+                    f"  {diff:>8s}: score={d['mean_score']:.3f}, "
+                    f"success_rate={d['success_rate']:.3f}, n={d['count']}"
                 )
+
+    # Save results to JSON
+    if args.output:
+        out_dir = os.path.dirname(args.output)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        output_data = {
+            "summary": summary,
+            "episodes": results,
+        }
+        with open(args.output, "w") as f:
+            json.dump(output_data, f, indent=2)
+        print(f"\nResults saved to {args.output}")
 
 
 if __name__ == "__main__":
@@ -150,5 +196,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--num_episodes", type=int, default=50,
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Random seed for reproducible task sampling.",
+    )
+    parser.add_argument(
+        "--output", type=str, default=None,
+        help="Path to save results as JSON (e.g. results/baseline.json).",
     )
     main(parser.parse_args())
