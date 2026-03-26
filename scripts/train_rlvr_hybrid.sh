@@ -49,5 +49,5 @@ ray job submit --address="http://127.0.0.1:8265" \
    --save_steps 500 \
    --logging_steps 1 \
    --use_wandb True \
-   --wandb_project "rlvr-terminalbench2" \
+   --wandb_project "afterquery" \
    --wandb_run_name "llama2-7b-chat-qlora-grpo-hybrid"
