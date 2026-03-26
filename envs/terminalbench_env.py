@@ -1,13 +1,18 @@
-"""
-RLVR environment for terminalbench2.
-Exposes reset() and step() operating on strings.
-"""
+# envs/terminalbench_env.py
 
-from typing import Any, Dict, Tuple
+from typing import Tuple, Dict, Any
+
 from envs.terminalbench_client import TerminalBenchClient, TaskState
 
 
 class TerminalBenchEnv:
+    """
+    RLVR environment for terminalbench.
+
+    This is not a full gym.Env to keep dependencies light; TRL will work with
+    text inputs/outputs. We expose reset() and step() that operate on strings.
+    """
+
     def __init__(
         self,
         tb_client: TerminalBenchClient,
@@ -23,30 +28,37 @@ class TerminalBenchEnv:
         self.w_success = w_success
         self.w_eff = w_eff
         self.w_quality = w_quality
+
         self.task: TaskState | None = None
         self.step_count: int = 0
         self.done: bool = False
 
     def reset(self) -> str:
+        # Clean up previous task's temp directory
+        if self.task is not None:
+            self.tb_client.cleanup(self.task)
+
         self.task = self.tb_client.sample_task()
-        self.task = self.tb_client.reset_task(self.task)
         self.step_count = 0
         self.done = False
         return self._build_prompt()
 
     def step(self, action_text: str) -> Tuple[str, float, bool, Dict[str, Any]]:
         if self.done:
-            raise RuntimeError("step() called on terminated episode")
+            raise RuntimeError("Step called on terminated episode")
+
         self.step_count += 1
+
+        # Execute command in sandbox
         self.task = self.tb_client.execute(self.task, action_text)
 
+        # Compute reward components
         success_score = self.task.score
         done = self.task.done or self.step_count >= self.max_steps
+
         success_reward = success_score if done else 0.0
         efficiency_reward = -self.step_penalty
-        quality_reward = self._compute_quality_reward(
-            action_text, self.task.terminal_output
-        )
+        quality_reward = self._compute_quality_reward(action_text, self.task.terminal_output)
 
         reward = (
             self.w_success * success_reward
@@ -57,50 +69,28 @@ class TerminalBenchEnv:
         obs = self._build_prompt()
         self.done = done
 
+        # Clean up temp dir when episode ends
+        if done and self.task is not None:
+            self.tb_client.cleanup(self.task)
+
         info = {
             "success_score": success_score,
             "step_count": self.step_count,
-            "success_reward": success_reward,
-            "efficiency_reward": efficiency_reward,
-            "quality_reward": quality_reward,
             "task_id": self.task.task_id,
-            "difficulty": self.task.difficulty,
-            "domain": self.task.domain,
         }
         return obs, reward, done, info
 
     def _build_prompt(self) -> str:
         assert self.task is not None
-        return self.tb_client.render_prompt(
-            self.task, self.step_count, self.max_steps
-        )
+        return self.tb_client.render_prompt(self.task, self.step_count, self.max_steps)
 
-    def _compute_quality_reward(
-        self, command: str, terminal_output: str
-    ) -> float:
+    def _compute_quality_reward(self, command: str, terminal_output: str) -> float:
         penalty = 0.0
         out = terminal_output.lower()
-        cmd = command.strip().lower()
-
         if "command not found" in out:
             penalty -= 1.0
         if "permission denied" in out:
             penalty -= 0.5
-        if "syntax error" in out or "syntaxerror" in out:
-            penalty -= 0.3
-
-        dangerous_patterns = [
-            "rm -rf /", "rm -rf /*", "mkfs", "dd if=/dev/zero",
-            ":(){:|:&};:", "chmod -R 777 /",
-        ]
-        for pattern in dangerous_patterns:
-            if pattern in cmd:
-                penalty -= 2.0
-
-        if not cmd:
+        if "[command timed out]" in out:
             penalty -= 0.5
-
-        if penalty == 0.0 and out and "error" not in out:
-            penalty += 0.01
-
         return penalty
