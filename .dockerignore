@@ -1,8 +1,0 @@
-.git
-__pycache__
-*.pyc
-models/
-data/
-.env
-*.egg-info
-.vscode
