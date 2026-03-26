@@ -89,14 +89,43 @@ def _make_env(cfg: dict, tb_client: TerminalBenchClient) -> TerminalBenchEnv:
 # ---------------------------------------------------------------------------
 
 def make_reward_func(cfg: dict):
-    """Create a reward function that runs commands in the terminalbench env."""
-    tb_client = _make_client(cfg)
-    env = _make_env(cfg, tb_client)
+    """Create a reward function that runs commands in the terminalbench env.
+
+    Each call creates a fresh client/env so reward computation is isolated
+    and thread-safe. The prompt text is parsed to recover the task description,
+    then matched to the correct TaskSpec so the reward corresponds to the
+    actual task the model was responding to.
+    """
+    from envs.tasks import get_all_tasks
+
+    all_tasks = get_all_tasks()
+    _task_by_desc = {t.description: t for t in all_tasks}
+
+    def _match_task(prompt_text: str):
+        """Find the TaskSpec whose description appears in the prompt."""
+        for desc, spec in _task_by_desc.items():
+            if desc in prompt_text:
+                return spec
+        return None
 
     def reward_func(prompts: list[str], completions: list[str], **kwargs) -> list[float]:
         rewards = []
         for prompt, completion in zip(prompts, completions):
             command = _extract_command(completion)
+
+            # Match prompt back to the correct task
+            spec = _match_task(prompt)
+            if spec is None:
+                rewards.append(0.0)
+                continue
+
+            # Create isolated client with just this task, run command
+            client = TerminalBenchClient(
+                task_specs=[spec],
+                command_timeout=cfg["env"].get("command_timeout", 10),
+                max_output_length=cfg["env"].get("max_output_length", 2000),
+            )
+            env = _make_env(cfg, client)
             env.reset()
             _obs, reward, _done, _info = env.step(command)
             rewards.append(reward)
@@ -156,7 +185,7 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
 
     trainer = GRPOTrainer(
         model=cfg["model_name"],
-        reward_funcs=reward_func,
+        reward_funcs=[reward_func],
         args=grpo_config,
         train_dataset=train_dataset,
     )
