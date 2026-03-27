@@ -11,17 +11,17 @@ env:
   max_output_length: 2000
 
 ppo:  # also used by GRPO trainer
-  learning_rate: 5.0e-6
-  batch_size: 8
-  mini_batch_size: 2
-  ppo_epochs: 2
-  target_kl: 0.04
+  learning_rate: 1.5e-5
+  batch_size: 16
+  mini_batch_size: 4
+  ppo_epochs: 4
+  target_kl: 0.06
   gamma: 0.99
   gae_lambda: 0.95
-  clip_range: 0.1
+  clip_range: 0.15
 
 train:
-  total_updates: 200  
+  total_updates: 800
   max_new_tokens: 128
   temperature: 0.7
   top_p: 0.9

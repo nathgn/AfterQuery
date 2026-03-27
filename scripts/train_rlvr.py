@@ -165,17 +165,17 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
     grpo_config = GRPOConfig(
         output_dir=args.output_dir,
         learning_rate=cfg["ppo"]["learning_rate"],
-        per_device_train_batch_size=2,
-        num_generations=2,
-        num_train_epochs=1,
+        per_device_train_batch_size=8,
+        num_generations=12,
+        num_train_epochs=4,
         max_steps=cfg["train"]["total_updates"],
         max_completion_length=cfg["train"]["max_new_tokens"],
         temperature=cfg["train"]["temperature"],
         top_p=cfg["train"]["top_p"],
         beta=cfg["ppo"]["target_kl"],
-        logging_steps=1,
+        logging_steps=10,
         save_strategy="steps",
-        save_steps=100,
+        save_steps=200,
         report_to="none",
         bf16=False,
         fp16=False,
@@ -192,6 +192,7 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
 
     trainer.train()
     trainer.save_model(args.output_dir)
+    print(f"\nModel saved to {args.output_dir}")
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +327,9 @@ def main(args: argparse.Namespace) -> None:
     else:
         raise ValueError(f"Unknown algorithm: {args.algo}. Use 'ppo' or 'grpo'.")
 
+    print("\nTraining complete. Exiting.")
+    sys.exit(0)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RLVR training for terminalbench")
@@ -344,7 +348,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_prompts",
         type=int,
-        default=256,
+        default=512,
         help="Number of prompts to generate for training dataset",
     )
     parser.add_argument(
