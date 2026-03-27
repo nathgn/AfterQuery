@@ -1,5 +1,6 @@
 # Model checkpoints and training artifacts
 models/
+results/
 *.pt
 *.safetensors
 *.bin
