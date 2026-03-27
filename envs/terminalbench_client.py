@@ -157,7 +157,20 @@ class TerminalBenchClient:
     def cleanup(self, task: TaskState) -> None:
         wd = self._active_workdirs.pop(task.instance_id, None)
         if wd:
-            wd.cleanup()
+            # On Windows, bash subprocesses may still hold file handles
+            # briefly after proc.communicate() returns. Retry with a
+            # small delay, then give up silently.
+            import time
+            for attempt in range(3):
+                try:
+                    shutil.rmtree(wd.name, ignore_errors=False)
+                    wd._finalizer.detach()  # prevent double-cleanup
+                    return
+                except PermissionError:
+                    time.sleep(0.2)
+            # Final attempt: just ignore errors
+            shutil.rmtree(wd.name, ignore_errors=True)
+            wd._finalizer.detach()
 
     def render_prompt(self, task: TaskState, step_index: int, max_steps: int) -> str:
         history_str = ""

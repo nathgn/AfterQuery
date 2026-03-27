@@ -1,0 +1,705 @@
+{
+  "summary": {
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "num_episodes": 50,
+    "seed": 42,
+    "mean_score": 0.436,
+    "std_score": 0.4977,
+    "success_rate": 0.42,
+    "mean_reward": 0.414,
+    "mean_steps": 3.48,
+    "by_difficulty": {
+      "easy": {
+        "mean_score": 0.6667,
+        "success_rate": 0.6667,
+        "count": 24
+      },
+      "medium": {
+        "mean_score": 0.175,
+        "success_rate": 0.125,
+        "count": 16
+      },
+      "hard": {
+        "mean_score": 0.3,
+        "success_rate": 0.3,
+        "count": 10
+      }
+    }
+  },
+  "episodes": [
+    {
+      "episode": 1,
+      "task_id": "easy_create_hello",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "touch hello.txt",
+        "$ cat hello.txt",
+        "$ cat hello.txt",
+        "$ $ cat hello.txt",
+        "$ diff hello.txt"
+      ]
+    },
+    {
+      "episode": 2,
+      "task_id": "hard_tar_archive",
+      "difficulty": "hard",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "tar -czf archive.tar.gz project/"
+      ]
+    },
+    {
+      "episode": 3,
+      "task_id": "easy_delete_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.948,
+      "step_count": 2,
+      "commands": [
+        "rm: cannot remove 'trash.txt': No such file or directory",
+        "$ rm trash.txt"
+      ]
+    },
+    {
+      "episode": 4,
+      "task_id": "easy_create_empty",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "echo \"\" > empty.txt",
+        "touch empty.txt",
+        "$ touch empty.txt",
+        "touch empty.txt",
+        "bash"
+      ]
+    },
+    {
+      "episode": 5,
+      "task_id": "easy_create_empty",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "touch empty.txt"
+      ]
+    },
+    {
+      "episode": 6,
+      "task_id": "easy_rename_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "mv old.txt new.txt"
+      ]
+    },
+    {
+      "episode": 7,
+      "task_id": "hard_tar_archive",
+      "difficulty": "hard",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "tar -czf archive.tar.gz project/"
+      ]
+    },
+    {
+      "episode": 8,
+      "task_id": "easy_copy_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "cp source.txt dest.txt"
+      ]
+    },
+    {
+      "episode": 9,
+      "task_id": "hard_shell_script",
+      "difficulty": "hard",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "sh greet.sh",
+        "sh greet.sh",
+        "chmod +x greet.sh",
+        "bash greet.sh",
+        "bash greet.sh"
+      ]
+    },
+    {
+      "episode": 10,
+      "task_id": "hard_tar_archive",
+      "difficulty": "hard",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "tar -czvf archive.tar.gz project"
+      ]
+    },
+    {
+      "episode": 11,
+      "task_id": "med_csv_column",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.20500000000000002,
+      "step_count": 5,
+      "commands": [
+        "cat data.csv | head -n 1 | awk '{print $1}' > names.txt",
+        "$ bash <(curl -s https://raw.githubusercontent.com/jaywcjlove/utils/master/task130.sh)",
+        "$ bash <(curl -s https://raw.githubusercontent.com/jaywcjlove/utils/master/task130.sh)",
+        "$ bash <(curl -s https://raw.githubusercontent.com/jaywcjlove/utils/master/task130.sh)",
+        "$ bash <(curl -s https://raw.githubusercontent.com/jaywcjlove/utils/master/task130.sh)"
+      ]
+    },
+    {
+      "episode": 12,
+      "task_id": "easy_count_lines",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.998,
+      "step_count": 2,
+      "commands": [
+        "wc -l data.txt > count.txt",
+        "cat data.txt | wc -l > count.txt"
+      ]
+    },
+    {
+      "episode": 13,
+      "task_id": "med_tail_file",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "$ tail -n +5 log.txt | tail -n +5 | head -n 5 >> last5.txt",
+        "$ tail -n +5 log.txt | tail -n +5 | head -n 5 >> last5.txt",
+        "$ tail -n +5 log.txt | tail -n +5 | head -n 5 >> last5.txt",
+        "$ tail -n +5 log.txt | tail -n +5 | head -n 5 >> last5.txt",
+        "$ $ tail -n +5 log.txt | tail -n +5 | head -n 5 >> last5.txt"
+      ]
+    },
+    {
+      "episode": 14,
+      "task_id": "med_unique_words",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.05500000000000001,
+      "step_count": 5,
+      "commands": [
+        "cat words.txt | wc -w > count.txt",
+        "$ bash",
+        "$ wc -w > count.txt",
+        "$ cat words.txt | wc -w > count.txt",
+        "wc -w"
+      ]
+    },
+    {
+      "episode": 15,
+      "task_id": "easy_create_dir",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "mkdir mydir"
+      ]
+    },
+    {
+      "episode": 16,
+      "task_id": "easy_create_hello",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.998,
+      "step_count": 2,
+      "commands": [
+        "touch hello.txt",
+        "echo \"hello world\" > hello.txt"
+      ]
+    },
+    {
+      "episode": 17,
+      "task_id": "easy_count_lines",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "wc -l data.txt | tail -n 1 | tr -d '\\n' | tr ' ' '\\n'",
+        "wc -l data.txt | tail -n 1 | tr -d '\\n' | tr ' ' '\\n'",
+        "bash -c \"cat data.txt | grep -oE '[0-9]+' | awk '{print $1}' > count.txt\"",
+        "bash -c \"cat data.txt | grep -oE '[0-9]+' | awk '{print $1}' > count.txt\"",
+        "bash -c \"cat data.txt | grep -oE '[0-9]+' | awk '{print $1}' > count.txt\""
+      ]
+    },
+    {
+      "episode": 18,
+      "task_id": "easy_head_file",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "echo \"data.txt\" > \"top.txt\"",
+        "$ tail -n +3 data.txt > top.txt",
+        "$ cat top.txt",
+        "$ tail -n +4 data.txt > top.txt",
+        "tail -n +5 data.txt > top.txt"
+      ]
+    },
+    {
+      "episode": 19,
+      "task_id": "easy_create_empty",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "touch empty.txt"
+      ]
+    },
+    {
+      "episode": 20,
+      "task_id": "med_deep_dir",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "mkdir a/b/c",
+        "$ mkdir a/b/c/deep",
+        "$ cd a/b/c",
+        "cd a/b/c/deep",
+        "$ cd a/b/c/deep"
+      ]
+    },
+    {
+      "episode": 21,
+      "task_id": "med_word_freq",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "wc -l words.txt | awk '{print $1}' | sort -n | head -n 1 > freq.txt",
+        "$ cat freq.txt",
+        "$ cat freq.txt",
+        "$ bash",
+        "$ bash"
+      ]
+    },
+    {
+      "episode": 22,
+      "task_id": "easy_create_hello",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "touch hello.txt",
+        "$ cat hello.txt",
+        "touch hello.txt",
+        "$ touch hello.txt",
+        "$ touch hello.txt"
+      ]
+    },
+    {
+      "episode": 23,
+      "task_id": "med_csv_column",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.05500000000000001,
+      "step_count": 5,
+      "commands": [
+        "cat data.csv | tail -n 1 | cut -f 1 | tr [:upper:] [:lower:] | tr [:punct:] [:space:] > names.txt",
+        "$ cat data.csv | tail -n 1 | cut -f 1 | tr [:upper:] [:lower:] | tr [:punct:] [:space:]; echo",
+        "$ cat data.csv | tail -n 1 | cut -f 1 | tr [:upper:] [:lower:] | tr [:punct:] [:space:]; echo",
+        "$ cat data.csv | tail -n 1 | cut -f 1 | tr [:upper:] [:lower:] | tr [:punct:] [:space:]; echo",
+        "$ tasksummarize -t csv -n names.txt"
+      ]
+    },
+    {
+      "episode": 24,
+      "task_id": "easy_head_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.997,
+      "step_count": 3,
+      "commands": [
+        "touch top.txt",
+        "$ touch top.txt",
+        "$ cat data.txt | head -n 3 > top.txt"
+      ]
+    },
+    {
+      "episode": 25,
+      "task_id": "hard_find_large",
+      "difficulty": "hard",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "find . -type f -name \"*.txt\" -size +100 -exec ls -l {} \\; | sort -nr | awk '{print $5}' > large.txt",
+        "bash large.sh",
+        "bash large.sh",
+        "bash large.sh",
+        "bash large.sh"
+      ]
+    },
+    {
+      "episode": 26,
+      "task_id": "hard_log_pipeline",
+      "difficulty": "hard",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "task 1: Process 'server.log': extract just the timestamps (first field of each line), remove duplicates, sort them chronologically, and save to 'timestamps.txt' (one per line)",
+        "task 1: Process 'server.log': extract just the timestamps (first field of each line), remove duplicates, sort them chronologically, and save to 'timestamps.txt' (one per line)",
+        "/usr/bin/bash -c \"task 1: Process 'server.log': extract just the timestamps (first field of each line), remove duplicates, sort them chronologically, and save to 'timestamps.txt' (one per line)\"",
+        "$ task 1: Process 'server.log': extract just the timestamps (first field of each line), remove duplicates, sort them chronologically, and save to 'timestamps.txt' (one per line)",
+        "task 1: Process 'server.log': extract just the timestamps (first field of each line), remove duplicates, sort them chronologically, and save to 'timestamps.txt' (one per line)"
+      ]
+    },
+    {
+      "episode": 27,
+      "task_id": "hard_find_large",
+      "difficulty": "hard",
+      "success_score": 0.0,
+      "episode_reward": -0.08000000000000002,
+      "step_count": 5,
+      "commands": [
+        "cat large.txt | sort | head -n 1 > large.txt.sorted",
+        "tail -f large.txt.sorted",
+        "tail -f large.txt.sorted",
+        "tail -f large.txt.sorted",
+        "$ find . -name '*' -type f -size +100M -print0 | xargs -0 wc -l | sort -r | head -n 1"
+      ]
+    },
+    {
+      "episode": 28,
+      "task_id": "med_csv_column",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.05500000000000001,
+      "step_count": 5,
+      "commands": [
+        "grep -A 1 'name' data.csv | cut -f1-2 | sed 's/ /,/g' > names.txt",
+        "bash",
+        "bash",
+        "$ cat names.txt",
+        "$ task complete"
+      ]
+    },
+    {
+      "episode": 29,
+      "task_id": "med_unique_words",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.08000000000000002,
+      "step_count": 5,
+      "commands": [
+        "`nano count.txt`",
+        "`cat words.txt | wc -w > count.txt`",
+        "`nano count.txt`",
+        "$ nano count.txt",
+        "$ cat count.txt | wc -w"
+      ]
+    },
+    {
+      "episode": 30,
+      "task_id": "easy_create_empty",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "touch empty.txt"
+      ]
+    },
+    {
+      "episode": 31,
+      "task_id": "med_replace_text",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.20500000000000002,
+      "step_count": 5,
+      "commands": [
+        "cat input.txt | sed 's/foo/bar/g' > output.txt",
+        "bash input.txt | sed 's/foo/bar/g' > output.txt",
+        "bash input.txt | sed 's/foo/bar/g' > output.txt",
+        "bash input.txt | sed 's/foo/bar/g'",
+        "bash input.txt | sed 's/foo/bar/g'"
+      ]
+    },
+    {
+      "episode": 32,
+      "task_id": "med_tail_file",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "echo \"Last 5 lines of log.txt are: $(tail -n 5 log.txt)\" >> last5.txt",
+        "$ cat last5.txt",
+        "tail -n 5 log.txt >> last5.txt",
+        "$ cat last5.txt",
+        "$ cat last5.txt"
+      ]
+    },
+    {
+      "episode": 33,
+      "task_id": "easy_delete_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "rm trash.txt"
+      ]
+    },
+    {
+      "episode": 34,
+      "task_id": "easy_create_hello",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "touch hello.txt",
+        "cat hello.txt",
+        "touch hello.txt",
+        "bash",
+        "cat hello.txt"
+      ]
+    },
+    {
+      "episode": 35,
+      "task_id": "hard_json_extract",
+      "difficulty": "hard",
+      "success_score": 0.0,
+      "episode_reward": -0.05500000000000001,
+      "step_count": 5,
+      "commands": [
+        "cat config.json | sed 's/^.*\"database.name\": \"//' | sed 's/\".*\"$//' >> dbname.txt",
+        "bash <(curl -s https://jsonplaceholder.typicode.com/posts/1) | jq '.userId' > userid.txt",
+        "bash",
+        "bash",
+        "$ bash"
+      ]
+    },
+    {
+      "episode": 36,
+      "task_id": "easy_append_line",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "echo \"Last line\" >> file.txt",
+        "$ cat file.txt | tail -n +2 >> file.txt",
+        "$ $ cat file.txt | tail -n +2 >> file.txt",
+        "tail -n +2 file.txt >> file.txt",
+        "$ tail -n +2 file.txt >> file.txt"
+      ]
+    },
+    {
+      "episode": 37,
+      "task_id": "hard_find_large",
+      "difficulty": "hard",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "wc -l large.txt",
+        "ls | grep large | wc -l",
+        "bash -c 'find . -name \"*.txt\" -type f -size +100 -exec ls -l {} \\; | sort -nr | awk '{print $9}' > large.txt'",
+        "bash -c 'find . -name \"*.txt\" -type f -size +100 -exec ls -l {} \\; | sort -nr | awk '{print $9}' > large.txt'",
+        "bash -c 'find . -name \"*.txt\" -type f -size +100 -exec ls -l {} \\; | sort -nr | awk '{print $9}' > large.txt'"
+      ]
+    },
+    {
+      "episode": 38,
+      "task_id": "med_unique_words",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "wc -l words.txt > count.txt",
+        "$ cat words.txt | wc -l >> count.txt",
+        "$ cat count.txt | wc -l",
+        "$ wc -l words.txt | wc -l >> count.txt",
+        "$ wc -l words.txt | wc -l >> count.txt"
+      ]
+    },
+    {
+      "episode": 39,
+      "task_id": "med_find_txt",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.08000000000000002,
+      "step_count": 5,
+      "commands": [
+        "`ls -l | grep -i txt | sed 's/\\.txt$//' > results.txt`",
+        "`bash > results.txt`",
+        "`cat results.txt`",
+        "`bash > results.txt`",
+        "bash > results.txt"
+      ]
+    },
+    {
+      "episode": 40,
+      "task_id": "easy_delete_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "rm trash.txt"
+      ]
+    },
+    {
+      "episode": 41,
+      "task_id": "easy_rename_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "mv old.txt new.txt"
+      ]
+    },
+    {
+      "episode": 42,
+      "task_id": "easy_head_file",
+      "difficulty": "easy",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "echo \"data.txt\" > top.txt",
+        "echo \"data.txt\" > top.txt",
+        "$ cat data.txt | tail -n +3 > top.txt",
+        "$ cat data.txt | tail -n +3 > top.txt",
+        "$ cat top.txt"
+      ]
+    },
+    {
+      "episode": 43,
+      "task_id": "hard_json_extract",
+      "difficulty": "hard",
+      "success_score": 0.0,
+      "episode_reward": -0.05500000000000001,
+      "step_count": 5,
+      "commands": [
+        "cat config.json | jq '.database.name' > dbname.txt",
+        "$ bash",
+        "$ cat dbname.txt",
+        "$ echo $DBNAME > dbname.txt",
+        "$ bash"
+      ]
+    },
+    {
+      "episode": 44,
+      "task_id": "med_find_txt",
+      "difficulty": "medium",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "find . -name '*.txt' -type f -print | xargs -I {} echo {} > results.txt"
+      ]
+    },
+    {
+      "episode": 45,
+      "task_id": "easy_copy_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.998,
+      "step_count": 2,
+      "commands": [
+        "$ cat source.txt",
+        "cat source.txt > dest.txt"
+      ]
+    },
+    {
+      "episode": 46,
+      "task_id": "easy_count_lines",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "cat data.txt | wc -l > count.txt"
+      ]
+    },
+    {
+      "episode": 47,
+      "task_id": "med_grep_errors",
+      "difficulty": "medium",
+      "success_score": 0.8,
+      "episode_reward": 0.795,
+      "step_count": 5,
+      "commands": [
+        "head -n 100 app.log > errors.txt",
+        "cat app.log | grep 'ERROR' | head -n 100 >> errors.txt",
+        "bash",
+        "$ cat errors.txt",
+        "$ cat errors.txt | awk '{print $1}' >> app.log"
+      ]
+    },
+    {
+      "episode": 48,
+      "task_id": "easy_copy_file",
+      "difficulty": "easy",
+      "success_score": 1.0,
+      "episode_reward": 0.999,
+      "step_count": 1,
+      "commands": [
+        "cp source.txt dest.txt"
+      ]
+    },
+    {
+      "episode": 49,
+      "task_id": "med_sort_file",
+      "difficulty": "medium",
+      "success_score": 1.0,
+      "episode_reward": 0.997,
+      "step_count": 3,
+      "commands": [
+        "sort unsorted.txt",
+        "$ bash",
+        "$ sort unsorted.txt > sorted.txt"
+      ]
+    },
+    {
+      "episode": 50,
+      "task_id": "med_sort_file",
+      "difficulty": "medium",
+      "success_score": 0.0,
+      "episode_reward": -0.005,
+      "step_count": 5,
+      "commands": [
+        "sort unsorted.txt | head -n 1 | tail -n 1 > sorted.txt",
+        "$ cat unsorted.txt | sort | head -n 1 | tail -n 1 > sorted.txt",
+        "$ ./task2",
+        "./task2",
+        "./task2"
+      ]
+    }
+  ]
+}
