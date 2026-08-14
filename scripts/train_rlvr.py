@@ -116,20 +116,27 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
     use_cuda = torch.cuda.is_available()
     bf16 = use_cuda and torch.cuda.is_bf16_supported()
 
+    if args.load_in_4bit and not use_cuda:
+        raise SystemExit(
+            "--load_in_4bit needs a CUDA GPU: bitsandbytes has no Metal/CPU "
+            "4-bit backend. Drop the flag to train in full precision, or run "
+            "this on a CUDA machine (Colab T4 is what the colab/ notebooks use)."
+        )
+
     grpo_config = GRPOConfig(
         output_dir=args.output_dir,
-        learning_rate=cfg["ppo"]["learning_rate"],
+        learning_rate=args.learning_rate or cfg["ppo"]["learning_rate"],
         per_device_train_batch_size=batch_size,
         num_generations=num_generations,
         num_train_epochs=1,
-        max_steps=cfg["train"]["total_updates"],
-        max_completion_length=cfg["train"]["max_new_tokens"],
+        max_steps=args.total_steps or cfg["train"]["total_updates"],
+        max_completion_length=args.max_new_tokens or cfg["train"]["max_new_tokens"],
         temperature=cfg["train"]["temperature"],
         top_p=cfg["train"]["top_p"],
         beta=cfg["ppo"]["target_kl"],
         logging_steps=10,
         save_strategy="steps",
-        save_steps=200,
+        save_steps=args.save_steps,
         report_to="none",
         bf16=bf16,
         fp16=use_cuda and not bf16,
@@ -137,11 +144,43 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
         gradient_checkpointing=use_cuda,
     )
 
+    model_name = args.model or cfg["model_name"]
+
+    # 4-bit quantization + LoRA: what the colab/ notebooks use to fit a 7B
+    # policy on a 16GB T4. Both are opt-in so the default path is unchanged.
+    model_arg = model_name
+    if args.load_in_4bit:
+        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+        model_arg = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16 if bf16 else torch.float16,
+                bnb_4bit_quant_type="nf4",
+            ),
+            device_map="auto",
+        )
+
+    peft_config = None
+    if args.lora:
+        from peft import LoraConfig
+        peft_config = LoraConfig(
+            r=args.lora_r,
+            lora_alpha=args.lora_r * 2,
+            lora_dropout=0.05,
+            target_modules=["q_proj", "v_proj"],
+            task_type="CAUSAL_LM",
+        )
+
+    print(f"Model: {model_name} | 4bit={args.load_in_4bit} | lora={args.lora} "
+          f"| steps={grpo_config.max_steps} | cuda={use_cuda}")
+
     trainer = GRPOTrainer(
-        model=cfg["model_name"],
+        model=model_arg,
         reward_funcs=[reward_func],
         args=grpo_config,
         train_dataset=train_dataset,
+        peft_config=peft_config,
     )
 
     trainer.train()
@@ -315,4 +354,21 @@ if __name__ == "__main__":
         choices=["ppo", "grpo"],
         help="RL algorithm to use: 'ppo' or 'grpo' (default: grpo)",
     )
+    # Overrides so each colab/ notebook config is reproducible headlessly.
+    parser.add_argument("--model", type=str, default=None,
+                        help="Override config model_name")
+    parser.add_argument("--total_steps", type=int, default=None,
+                        help="Override train.total_updates")
+    parser.add_argument("--learning_rate", type=float, default=None,
+                        help="Override ppo.learning_rate")
+    parser.add_argument("--max_new_tokens", type=int, default=None,
+                        help="Override train.max_new_tokens")
+    parser.add_argument("--save_steps", type=int, default=200,
+                        help="Checkpoint interval")
+    parser.add_argument("--lora", action="store_true",
+                        help="Train LoRA adapters instead of full fine-tuning")
+    parser.add_argument("--lora_r", type=int, default=16,
+                        help="LoRA rank (alpha is set to 2x this)")
+    parser.add_argument("--load_in_4bit", action="store_true",
+                        help="4-bit NF4 quantization (requires CUDA)")
     main(parser.parse_args())

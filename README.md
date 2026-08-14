@@ -127,6 +127,24 @@ The `colab/` directory contains ready-to-run notebooks for training on a free T4
 
 The 7B notebooks use **4-bit quantization + LoRA** to fit within the T4's 16GB VRAM, with gradient checkpointing and reduced batch sizes.
 
+### Running every notebook config headlessly
+
+The notebooks are interactive and Colab-bound (they import `google.colab`,
+mount Drive, and the 7B ones need manual runtime restarts), so they can't be
+batched as-is. `scripts/run_all_configs.py` reproduces all five configs through
+the CLI instead — each trains with the same model, step count, learning rate,
+LoRA rank, and 4-bit setting, then evaluates and writes `results/<name>_trained.json`:
+
+```bash
+python scripts/run_all_configs.py --dry_run    # print the queue
+python scripts/run_all_configs.py              # run all five
+python scripts/run_all_configs.py --only qwen7b_500
+python scripts/summarize_results.py            # tabulate the outcomes
+```
+
+This needs a CUDA GPU — all five configs use 4-bit NF4 via bitsandbytes, which
+has no Metal or CPU backend. Budget 1–2 hours per config on a T4.
+
 ## Switching Models
 
 Edit `configs/config_terminalbench.yaml`:
