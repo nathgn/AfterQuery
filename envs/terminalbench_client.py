@@ -2,7 +2,9 @@
 
 import os
 import random
+import re
 import shutil
+import signal
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -104,6 +106,19 @@ class TerminalBenchClient:
         "top", "htop", "ssh", "telnet", "ftp", "mysql", "psql",
     ])
 
+    # Forms that block forever *with* arguments, so the bare-command check
+    # above never catches them. Each one burns the full timeout and can never
+    # complete a benchmark task, so reject them immediately instead: during
+    # training these dominate wall-clock (a weak policy emits them often).
+    _BLOCKING_PATTERNS = (
+        re.compile(r"\btail\s+(-\S*f|--follow)", re.I),
+        re.compile(r"\bwatch\b", re.I),
+        re.compile(r"\bjournalctl\s+.*(-\S*f|--follow)", re.I),
+        re.compile(r"\bping\b(?!.*\s-c\b)", re.I),
+        re.compile(r"\bsleep\s+(\d{3,}|infinity)", re.I),
+        re.compile(r"\b(nc|netcat)\s+-\S*l", re.I),
+    )
+
     def _execute_in_sandbox(self, workdir: str, command: str) -> str:
         posix_wd = _win_to_posix(workdir)
         # Sanitize: only take the first line, strip leading $ prompts, limit length
@@ -119,7 +134,19 @@ class TerminalBenchClient:
         if base_cmd in self._BLOCKED_COMMANDS and is_bare:
             return f"[blocked: '{base_cmd}' is interactive and not allowed]"
 
-        wrapped = f'cd "{posix_wd}" && {command}'
+        for pat in self._BLOCKING_PATTERNS:
+            if pat.search(command):
+                return "[blocked: command would block until timeout]"
+
+        # Truncate inside the shell rather than in Python. proc.communicate()
+        # buffers everything in memory, so an unbounded producer like `yes` or
+        # `cat /dev/urandom` allocates gigabytes before the timeout can fire --
+        # enough to get the training process OOM-killed. Piping through
+        # `head -c` bounds memory and SIGPIPEs the producer, so those commands
+        # now finish instantly instead of running until the timeout.
+        # `head` masks the exit status, which is fine: only output is used.
+        limit = self.max_output_length
+        wrapped = f'cd "{posix_wd}" && {{ {command} ; }} 2>&1 | head -c {limit}'
         env = os.environ.copy()
         env["HOME"] = workdir
         env["TERM"] = "dumb"
@@ -127,26 +154,33 @@ class TerminalBenchClient:
             proc = subprocess.Popen(
                 [_BASH, "-c", wrapped],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
+                # Binary output (e.g. `cat /dev/urandom`) must degrade to
+                # replacement chars, not raise a UnicodeDecodeError.
+                errors="replace",
                 env=env,
+                # Own process group so a timeout kills the whole pipeline.
+                # proc.kill() alone leaves children (e.g. the producer feeding
+                # a pipe) orphaned and running for the rest of the session.
+                start_new_session=True,
             )
             try:
-                stdout, stderr = proc.communicate(timeout=self.command_timeout)
+                output, _ = proc.communicate(timeout=self.command_timeout)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    proc.kill()
                 try:
                     proc.communicate(timeout=5)
                 except (subprocess.TimeoutExpired, OSError):
                     pass
                 return "[command timed out]"
-            output = stdout
-            if stderr:
-                output = output + stderr if output else stderr
         except Exception as e:
             output = f"[execution error: {e}]"
 
-        return output[: self.max_output_length]
+        return (output or "")[: self.max_output_length]
 
     def _get_spec(self, task_id: str) -> TaskSpec:
         for spec in self.task_specs:
