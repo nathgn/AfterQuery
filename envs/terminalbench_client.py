@@ -155,6 +155,10 @@ class TerminalBenchClient:
                 [_BASH, "-c", wrapped],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                # Never inherit the trainer's stdin: a command that reads it
+                # would either block until the timeout or consume input meant
+                # for the parent process.
+                stdin=subprocess.DEVNULL,
                 text=True,
                 # Binary output (e.g. `cat /dev/urandom`) must degrade to
                 # replacement chars, not raise a UnicodeDecodeError.
