@@ -45,11 +45,37 @@ def main(args: argparse.Namespace) -> None:
     model_name = args.model_dir or cfg["model_name"]
     print(f"Loading model: {model_name}")
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    # A LoRA/PEFT checkpoint is an adapter dir, not a full model - detect it and
+    # load through peft so trained runs from train_rlvr.py --lora can be scored.
+    is_peft = os.path.isfile(os.path.join(model_name, "adapter_config.json"))
+    tokenizer_src = model_name
+    if is_peft:
+        import json as _json
+        with open(os.path.join(model_name, "adapter_config.json")) as f:
+            base = _json.load(f).get("base_model_name_or_path")
+        if base and not os.path.isdir(os.path.join(model_name, "tokenizer_config.json")):
+            tokenizer_src = model_name if os.path.isfile(
+                os.path.join(model_name, "tokenizer_config.json")) else base
+        print(f"Detected LoRA adapter (base: {base})")
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_src)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    model = AutoModelForCausalLM.from_pretrained(model_name).eval()
+    if is_peft:
+        from peft import AutoPeftModelForCausalLM
+        model = AutoPeftModelForCausalLM.from_pretrained(model_name).eval()
+    else:
+        model = AutoModelForCausalLM.from_pretrained(model_name).eval()
+
+    # Use the best available accelerator; otherwise generation crawls on CPU.
+    import torch as _torch
+    if _torch.cuda.is_available():
+        model = model.to("cuda")
+    elif _torch.backends.mps.is_available():
+        model = model.to("mps")
+    print(f"Device: {model.device}")
+
     max_ctx = getattr(model.config, "max_position_embeddings", 2048)
 
     tb_client = TerminalBenchClient(
@@ -65,7 +91,7 @@ def main(args: argparse.Namespace) -> None:
         w_quality=cfg["env"]["w_quality"],
     )
 
-    max_new = cfg["train"]["max_new_tokens"]
+    max_new = args.max_new_tokens or cfg["train"]["max_new_tokens"]
     num_episodes = args.num_episodes
 
     print(f"\nRunning {num_episodes} evaluation episodes...")
@@ -207,5 +233,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output", type=str, default=None,
         help="Path to save results as JSON (e.g. results/baseline.json).",
+    )
+    parser.add_argument(
+        "--max_new_tokens", type=int, default=None,
+        help="Override config train.max_new_tokens.",
     )
     main(parser.parse_args())

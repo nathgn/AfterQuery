@@ -114,6 +114,9 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
         )
 
     use_cuda = torch.cuda.is_available()
+    # Apple Silicon: let the Trainer use Metal instead of falling back to CPU.
+    # Stay in fp32 there — fp16 grad scaling and bf16 are both unreliable on MPS.
+    use_mps = not use_cuda and torch.backends.mps.is_available()
     bf16 = use_cuda and torch.cuda.is_bf16_supported()
 
     if args.load_in_4bit and not use_cuda:
@@ -140,7 +143,7 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
         report_to="none",
         bf16=bf16,
         fp16=use_cuda and not bf16,
-        use_cpu=not use_cuda,
+        use_cpu=not (use_cuda or use_mps),
         gradient_checkpointing=use_cuda,
     )
 
@@ -160,6 +163,14 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
             ),
             device_map="auto",
         )
+    elif use_mps:
+        # Passing a model *name* lets transformers lazy-init on the meta device,
+        # which blows up in backward ("expected device meta but got mps:0").
+        # Materialize the weights on Metal up front instead.
+        from transformers import AutoModelForCausalLM
+        model_arg = AutoModelForCausalLM.from_pretrained(
+            model_name, dtype=torch.float32
+        ).to("mps")
 
     peft_config = None
     if args.lora:
@@ -172,8 +183,9 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
             task_type="CAUSAL_LM",
         )
 
+    device = "cuda" if use_cuda else ("mps" if use_mps else "cpu")
     print(f"Model: {model_name} | 4bit={args.load_in_4bit} | lora={args.lora} "
-          f"| steps={grpo_config.max_steps} | cuda={use_cuda}")
+          f"| steps={grpo_config.max_steps} | device={device}")
 
     trainer = GRPOTrainer(
         model=model_arg,
