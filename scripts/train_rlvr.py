@@ -167,9 +167,18 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
         # Passing a model *name* lets transformers lazy-init on the meta device,
         # which blows up in backward ("expected device meta but got mps:0").
         # Materialize the weights on Metal up front instead.
+        #
+        # dtype: with LoRA the base model is frozen, so bf16 weights are safe
+        # (this is what QLoRA does with a 4-bit base) and halve the footprint.
+        # On 16GB unified memory fp32 pushed the system into swap and training
+        # collapsed from ~8s/step to ~100s/step. Full fine-tuning still needs
+        # fp32 on MPS, where fp16 grad scaling and bf16 master weights are
+        # both unreliable.
         from transformers import AutoModelForCausalLM
+        mps_dtype = torch.bfloat16 if args.lora else torch.float32
+        print(f"MPS: loading base in {mps_dtype} (lora={args.lora})")
         model_arg = AutoModelForCausalLM.from_pretrained(
-            model_name, dtype=torch.float32
+            model_name, dtype=mps_dtype
         ).to("mps")
 
     peft_config = None
