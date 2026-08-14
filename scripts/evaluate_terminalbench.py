@@ -21,9 +21,9 @@ import yaml
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 sys.path.insert(0, ".")
+from envs.rewards import extract_command
 from envs.terminalbench_client import TerminalBenchClient
 from envs.terminalbench_env import TerminalBenchEnv
-from scripts.train_rlvr import _extract_command
 
 
 def load_config(path: str) -> dict:
@@ -34,9 +34,12 @@ def load_config(path: str) -> dict:
 def main(args: argparse.Namespace) -> None:
     cfg = load_config(args.config)
 
-    # Seed RNG for reproducible task sampling
+    # Seed RNGs: `random` drives task sampling, torch drives sampling-based
+    # generation (do_sample=True). Both must be seeded for reproducible runs.
     if args.seed is not None:
+        import torch
         random.seed(args.seed)
+        torch.manual_seed(args.seed)
         print(f"Random seed: {args.seed}")
 
     model_name = args.model_dir or cfg["model_name"]
@@ -99,7 +102,7 @@ def main(args: argparse.Namespace) -> None:
             # Decode only the newly generated tokens
             new_ids = out_ids[0][inputs["input_ids"].shape[1]:]
             raw_text = tokenizer.decode(new_ids, skip_special_tokens=True)
-            action_text = _extract_command(raw_text)
+            action_text = extract_command(raw_text)
 
             commands.append(action_text)
             print(f"    step {env.step_count + 1}: {action_text[:80]}")

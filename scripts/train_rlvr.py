@@ -14,13 +14,13 @@
 #   python scripts/train_rlvr.py --config configs/config_terminalbench.yaml --num_prompts 16
 
 import argparse
-import re
 import sys
 
 import yaml
 from datasets import Dataset
 
 sys.path.insert(0, ".")
+from envs.rewards import make_reward_func as _make_reward_func
 from envs.terminalbench_client import TerminalBenchClient
 from envs.terminalbench_env import TerminalBenchEnv
 
@@ -28,38 +28,6 @@ from envs.terminalbench_env import TerminalBenchEnv
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _extract_command(text: str) -> str:
-    """Extract a single shell command from model output.
-
-    The model often generates markdown, explanations, and code blocks.
-    This tries to pull out just the command.
-    """
-    text = text.strip()
-    if not text:
-        return "echo noop"
-
-    # Try to find a ```bash ... ``` code block
-    m = re.search(r"```(?:bash|sh)?\s*\n(.+?)```", text, re.DOTALL)
-    if m:
-        for line in m.group(1).splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                return line
-
-    # Otherwise take the first non-empty, non-comment, non-prose line
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        # Skip lines that look like English prose
-        if re.match(r"^[A-Z][a-z].*\s(the|a|an|is|to|you|can|this)\s", line):
-            continue
-        return line
-
-    # Fallback: first line
-    return text.splitlines()[0].strip() or "echo noop"
-
 
 def load_config(path: str) -> dict:
     with open(path, "r") as f:
@@ -89,49 +57,20 @@ def _make_env(cfg: dict, tb_client: TerminalBenchClient) -> TerminalBenchEnv:
 # ---------------------------------------------------------------------------
 
 def make_reward_func(cfg: dict):
-    """Create a reward function that runs commands in the terminalbench env.
+    """Build the shared task-matched reward function from the config.
 
-    Each call creates a fresh client/env so reward computation is isolated
-    and thread-safe. The prompt text is parsed to recover the task description,
-    then matched to the correct TaskSpec so the reward corresponds to the
-    actual task the model was responding to.
+    See envs/rewards.py: the prompt is matched back to its TaskSpec (so the
+    command is scored against the right task) and partial verify() scores
+    flow into the reward.
     """
-    from envs.tasks import get_all_tasks
-
-    all_tasks = get_all_tasks()
-    _task_by_desc = {t.description: t for t in all_tasks}
-
-    def _match_task(prompt_text: str):
-        """Find the TaskSpec whose description appears in the prompt."""
-        for desc, spec in _task_by_desc.items():
-            if desc in prompt_text:
-                return spec
-        return None
-
-    def reward_func(prompts: list[str], completions: list[str], **kwargs) -> list[float]:
-        rewards = []
-        for prompt, completion in zip(prompts, completions):
-            command = _extract_command(completion)
-
-            # Match prompt back to the correct task
-            spec = _match_task(prompt)
-            if spec is None:
-                rewards.append(0.0)
-                continue
-
-            # Create isolated client with just this task, run command
-            client = TerminalBenchClient(
-                task_specs=[spec],
-                command_timeout=cfg["env"].get("command_timeout", 10),
-                max_output_length=cfg["env"].get("max_output_length", 2000),
-            )
-            env = _make_env(cfg, client)
-            env.reset()
-            _obs, reward, _done, _info = env.step(command)
-            rewards.append(reward)
-        return rewards
-
-    return reward_func
+    return _make_reward_func(
+        command_timeout=cfg["env"].get("command_timeout", 10),
+        max_output_length=cfg["env"].get("max_output_length", 2000),
+        step_penalty=cfg["env"]["step_penalty"],
+        w_success=cfg["env"]["w_success"],
+        w_eff=cfg["env"]["w_eff"],
+        w_quality=cfg["env"]["w_quality"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -157,17 +96,32 @@ def build_prompt_dataset(cfg: dict, num_prompts: int = 256) -> Dataset:
 
 def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
     """Train using GRPO - no value model needed."""
+    import torch
     from trl import GRPOConfig, GRPOTrainer
 
     train_dataset = build_prompt_dataset(cfg, num_prompts=args.num_prompts)
     reward_func = make_reward_func(cfg)
 
+    # TRL requires the effective batch size (per_device_train_batch_size *
+    # num_processes * gradient_accumulation_steps) to be evenly divisible
+    # by num_generations.
+    batch_size = cfg["train"].get("per_device_batch_size", 4)
+    num_generations = cfg["train"].get("num_generations", 4)
+    if batch_size % num_generations != 0:
+        raise ValueError(
+            f"train.per_device_batch_size ({batch_size}) must be divisible "
+            f"by train.num_generations ({num_generations})"
+        )
+
+    use_cuda = torch.cuda.is_available()
+    bf16 = use_cuda and torch.cuda.is_bf16_supported()
+
     grpo_config = GRPOConfig(
         output_dir=args.output_dir,
         learning_rate=cfg["ppo"]["learning_rate"],
-        per_device_train_batch_size=8,
-        num_generations=12,
-        num_train_epochs=4,
+        per_device_train_batch_size=batch_size,
+        num_generations=num_generations,
+        num_train_epochs=1,
         max_steps=cfg["train"]["total_updates"],
         max_completion_length=cfg["train"]["max_new_tokens"],
         temperature=cfg["train"]["temperature"],
@@ -177,10 +131,10 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
         save_strategy="steps",
         save_steps=200,
         report_to="none",
-        bf16=False,
-        fp16=False,
-        use_cpu=True,
-        gradient_checkpointing=False,
+        bf16=bf16,
+        fp16=use_cuda and not bf16,
+        use_cpu=not use_cuda,
+        gradient_checkpointing=use_cuda,
     )
 
     trainer = GRPOTrainer(
@@ -200,7 +154,13 @@ def train_grpo(cfg: dict, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 def train_ppo(cfg: dict, args: argparse.Namespace) -> None:
-    """Train using PPO - requires a value model."""
+    """Train using PPO - requires a value model.
+
+    NOTE: this path targets the legacy TRL PPO API (trl < 0.9:
+    PPOConfig(ppo_epochs=..., log_with=...), ppo_trainer.step(...)) and will
+    not run against the trl >= 0.14 required by the GRPO path. Kept for
+    reference; pin trl==0.8.x in a separate environment to use it.
+    """
     from trl import PPOConfig, PPOTrainer, AutoModelForCausalLMWithValueHead
     from transformers import AutoTokenizer
 
@@ -237,9 +197,8 @@ def train_ppo(cfg: dict, args: argparse.Namespace) -> None:
         dataset=train_dataset,
     )
 
-    # Build reward function
-    tb_client = _make_client(cfg)
-    env = _make_env(cfg, tb_client)
+    # Build reward function (task-matched, shared with GRPO)
+    reward_func = make_reward_func(cfg)
 
     max_new_tokens = cfg["train"]["max_new_tokens"]
     total_updates = cfg["train"]["total_updates"]
@@ -282,14 +241,12 @@ def train_ppo(cfg: dict, args: argparse.Namespace) -> None:
                 for r in response_tensors
             ]
 
-            # Compute rewards
+            # Compute rewards against the task each prompt actually posed
             import torch
-            rewards = []
-            for prompt_text, response_text in zip(batch_prompts, responses_text):
-                command = _extract_command(response_text)
-                env.reset()
-                _obs, reward, _done, _info = env.step(command)
-                rewards.append(torch.tensor(reward, dtype=torch.float32))
+            rewards = [
+                torch.tensor(r, dtype=torch.float32)
+                for r in reward_func(batch_prompts, responses_text)
+            ]
 
             # PPO update step
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)

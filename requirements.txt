@@ -1,7 +1,9 @@
 transformers>=4.40.0
-trl>=0.8.0
+trl>=0.14.0  # GRPO path; the legacy PPO path in train_rlvr.py needs trl==0.8.x instead
 accelerate>=0.27.0
 torch>=2.1.0
-datasets>=2.0.0
+datasets>=2.14.0
+peft>=0.10.0
+bitsandbytes>=0.43.0; platform_system == "Linux"  # 4-bit quantization (Colab/CUDA)
 pyyaml>=6.0
 tqdm>=4.66.0

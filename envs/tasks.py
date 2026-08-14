@@ -2,7 +2,9 @@
 
 import os
 import random
-import string
+import shutil
+import subprocess
+import tarfile
 from dataclasses import dataclass
 from typing import Callable
 
@@ -93,7 +95,7 @@ def _easy_count_lines():
     return TaskSpec(
         task_id="easy_count_lines",
         difficulty="easy",
-        description=f"Count the number of lines in 'data.txt' and write just the number to 'count.txt'.",
+        description="Count the number of lines in 'data.txt' and write just the number to 'count.txt'.",
         setup=setup,
         verify=verify,
     )
@@ -488,13 +490,30 @@ def _med_word_freq():
         result = _read(wd, "freq.txt")
         if result is None:
             return 0.0
-        # accept various formats, just check the counts appear
-        r = result.strip()
-        has_apple = "3" in r and "apple" in r
-        has_banana = "2" in r and "banana" in r
-        has_cherry = "1" in r and "cherry" in r
-        score = sum([has_apple, has_banana, has_cherry]) / 3.0
-        return score
+        # Parse 'count word' (or 'word count') pairs so counts must actually
+        # be associated with the right word, not just appear anywhere.
+        expected = {"apple": 3, "banana": 2, "cherry": 1}
+        counts = {}
+        ordered_counts = []
+        for line in result.strip().splitlines():
+            parts = line.split()
+            if len(parts) != 2:
+                continue
+            a, b = parts
+            if a.isdigit():
+                cnt, word = int(a), b
+            elif b.isdigit():
+                word, cnt = a, int(b)
+            else:
+                continue
+            if word in expected and word not in counts:
+                counts[word] = cnt
+                ordered_counts.append(cnt)
+        correct = sum(1 for w, c in expected.items() if counts.get(w) == c)
+        if correct == 3 and ordered_counts == sorted(ordered_counts, reverse=True):
+            return 1.0
+        # partial: right counts but wrong order / missing entries
+        return correct / 3.0 * 0.8
 
     return TaskSpec(
         task_id="med_word_freq",
@@ -555,18 +574,31 @@ def _hard_shell_script():
 
     def verify(wd):
         script_path = os.path.join(wd, "greet.sh")
-        output_path = os.path.join(wd, "output.txt")
         if not os.path.isfile(script_path):
             return 0.0
         score = 0.0
         # check it's executable
-        content = _read(wd, "greet.sh")
-        if content and "hello" in content.lower():
-            score += 0.3
+        if os.access(script_path, os.X_OK):
+            score += 0.1
+        # actually run the script: it must print 'hello' to stdout
+        # (defeats `echo hello > greet.sh`, which is not a working script)
+        bash = shutil.which("bash") or "bash"
+        try:
+            proc = subprocess.run(
+                [bash, script_path],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=wd,
+            )
+            if "hello" in proc.stdout.lower():
+                score += 0.4
+        except (subprocess.TimeoutExpired, OSError):
+            pass
         # check output.txt has "hello"
         output = _read(wd, "output.txt")
         if output and "hello" in output.lower():
-            score += 0.7
+            score += 0.5
         return min(score, 1.0)
 
     return TaskSpec(
@@ -595,11 +627,16 @@ def _hard_find_large_files():
         if result is None:
             return 0.0
         # files > 100 bytes: medium.txt, big.txt, huge.txt
-        needed = {"medium.txt", "big.txt", "huge.txt"}
+        needed = ["huge.txt", "big.txt", "medium.txt"]  # largest first
         found = sum(1 for name in needed if name in result)
         # should NOT include small.txt
         penalty = 0.3 if "small.txt" in result else 0.0
-        return max(0.0, found / len(needed) - penalty)
+        base = max(0.0, found / len(needed) - penalty)
+        if found == len(needed) and penalty == 0.0:
+            # full credit only if sorted largest-first, as the task requires
+            positions = [result.find(name) for name in needed]
+            return 1.0 if positions == sorted(positions) else 0.8
+        return base
 
     return TaskSpec(
         task_id="hard_find_large",
@@ -620,11 +657,23 @@ def _hard_tar_archive():
         _write(wd, os.path.join("project", "readme.md"), "# Project\n")
 
     def verify(wd):
-        # check that archive.tar.gz exists
+        # the archive must be a real gzipped tar containing the project files
+        # (defeats `echo junk > archive.tar.gz`)
         for name in ["archive.tar.gz", "archive.tgz"]:
             path = os.path.join(wd, name)
-            if os.path.isfile(path) and os.path.getsize(path) > 0:
+            if not os.path.isfile(path):
+                continue
+            try:
+                with tarfile.open(path, "r:gz") as tf:
+                    members = tf.getnames()
+            except (tarfile.TarError, OSError, EOFError):
+                return 0.0
+            has_main = any(m.endswith("main.py") for m in members)
+            has_readme = any(m.endswith("readme.md") for m in members)
+            if has_main and has_readme:
                 return 1.0
+            # valid archive but missing the project files
+            return 0.3 if members else 0.0
         return 0.0
 
     return TaskSpec(

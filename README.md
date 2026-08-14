@@ -19,7 +19,7 @@ The LLM is treated as an RL agent interacting with a real shell:
 
 Two RL algorithms are supported:
 - **GRPO** (default, recommended) — No critic/value model needed, uses group-relative baselines. Memory efficient.
-- **PPO** — Classic policy gradient with a separate value model. Higher memory, more general.
+- **PPO** — Classic policy gradient with a separate value model. Higher memory, more general. **Note:** the PPO path targets the legacy TRL API and requires `trl==0.8.x`; it will not run with the `trl>=0.14` needed for GRPO.
 
 ## Project Structure
 
@@ -30,6 +30,7 @@ envs/
   tasks.py                     # 25 task definitions with setup() and verify()
   terminalbench_client.py      # Sandbox client: temp dirs, subprocess, scoring
   terminalbench_env.py         # Gym-style environment for the RLVR MDP
+  rewards.py                   # Command extraction + task-matched reward (shared by scripts & notebooks)
 scripts/
   train_rlvr.py                # Main GRPO/PPO training loop
   evaluate_terminalbench.py    # Evaluate trained or base models
@@ -40,6 +41,8 @@ colab/
   train_colab_7b_200_steps.ipynb   # Qwen 7B + LoRA, 200 steps
   train_colab_7b_500_steps.ipynb   # Qwen 7B + LoRA, 500 steps
   train_colab_7b_save_model.ipynb  # Qwen 7B full pipeline with eval + Drive save
+tests/
+  test_tasks.py                # Reference solution scores 1.0 for every task; reward-hack guards
 ```
 
 ## Benchmark Tasks
@@ -156,11 +159,22 @@ Key settings in `configs/config_terminalbench.yaml`:
 | `ppo.learning_rate` | 1.5e-5 | Learning rate |
 | `ppo.batch_size` | 16 | Batch size |
 
-## Sandbox Security
+## Sandbox Caveats
 
-Commands are executed in isolated environments with several safety measures:
-- Temporary directories with custom `HOME` — no access to real filesystem
-- Interactive commands blocked (`bash`, `vi`, `ssh`, `python` REPL, etc.)
-- 10-second timeout with hard-kill on runaway processes
-- Output truncated to 2000 characters
+**The "sandbox" is an isolated temp working directory, not a security boundary.**
+Commands run as your user in a plain bash subprocess:
+
+- Each task gets its own temp directory with `HOME` pointed at it, and commands
+  `cd` there first — but absolute paths (`/etc/...`, `~/...` expansion aside)
+  can still reach the real filesystem
+- The subprocess inherits your full environment (API keys, tokens) and has
+  unrestricted network access
+- Bare interactive commands are blocked (`bash`, `vi`, `ssh`, `python`, etc.),
+  but only bare invocations — `python -c "..."` runs
+- 10-second timeout with hard-kill on runaway processes; output truncated to
+  2000 characters
 - Windows support via Git Bash with automatic path conversion
+
+Since RL training explores arbitrary generated shell commands, run training in
+a container if you care about the host, e.g.
+`docker run --rm --network none -v "$PWD":/work -w /work python:3.11 ...`
