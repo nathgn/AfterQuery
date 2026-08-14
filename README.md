@@ -33,7 +33,8 @@ envs/
   rewards.py                   # Command extraction + task-matched reward (shared by scripts & notebooks)
 scripts/
   train_rlvr.py                # Main GRPO/PPO training loop
-  evaluate_terminalbench.py    # Evaluate trained or base models
+  evaluate_terminalbench.py    # Evaluate trained or base models (transformers/CUDA)
+  evaluate_mlx.py              # Evaluate via MLX on Apple Silicon (4-bit 7B fits in 16GB)
   compare_results.py           # Side-by-side baseline vs trained comparison
 colab/
   train_colab_3b_200_steps.ipynb   # Qwen 3B, 200 steps (Colab T4)
@@ -91,6 +92,17 @@ python scripts/evaluate_terminalbench.py \
 
 # Evaluate base model
 python scripts/evaluate_terminalbench.py --num_episodes 10
+```
+
+**On Apple Silicon**, the transformers path above can't host a 7B model: it
+relies on `bitsandbytes` 4-bit, which is CUDA-only. Use the MLX path instead —
+same environment, prompt, and command extraction, same output JSON schema:
+
+```bash
+pip install mlx-lm
+python scripts/evaluate_mlx.py \
+  --model mlx-community/Qwen2.5-7B-Instruct-4bit \
+  --num_episodes 50 --seed 42 --output results/qwen7b_mlx_baseline.json
 ```
 
 ### 4. Compare Results
